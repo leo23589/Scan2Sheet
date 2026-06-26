@@ -1,6 +1,7 @@
-import { useState, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { useState, useRef, useEffect } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as SQLite from 'expo-sqlite';
 
 export default function App() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -8,6 +9,35 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [extractedData, setExtractedData] = useState<{ merchant: string; total: string; date: string } | null>(null);
   const cameraRef = useRef<CameraView>(null);
+
+  useEffect(() => {
+    setupDatabase();
+  }, []);
+
+  const setupDatabase = async () => {
+    const db = await SQLite.openDatabaseAsync('receipts.db');
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS receipts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        merchant TEXT,
+        total REAL,
+        date TEXT
+      );
+    `);
+  };
+
+  const saveToDatabase = async (data: { merchant: string; total: string; date: string }) => {
+    try {
+      const db = await SQLite.openDatabaseAsync('receipts.db');
+      await db.runAsync(
+        'INSERT INTO receipts (merchant, total, date) VALUES (?, ?, ?)',
+        [data.merchant, parseFloat(data.total), data.date]
+      );
+      Alert.alert("Success", "Receipt saved to your local database!");
+    } catch (error) {
+      Alert.alert("Error", "Could not save to database.");
+    }
+  };
 
   if (!permission) {
     return <View />;
@@ -38,11 +68,13 @@ export default function App() {
     setIsAnalyzing(true);
 
     setTimeout(() => {
-      setExtractedData({
+      const mockData = {
         merchant: "Tech Store Inc.",
         total: "299.99",
         date: "2026-06-23"
-      });
+      };
+      setExtractedData(mockData);
+      saveToDatabase(mockData);
       setIsAnalyzing(false);
     }, 2500);
   };
