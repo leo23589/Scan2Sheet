@@ -11,6 +11,8 @@ def parse_receipt_data(text):
     data = {
         "type": "journalier",
         "Date": 0,
+        "Mois": 0,
+        "Annee": 0,
         "Espece": 0.0,
         "T.Resto": 0.0,
         "CB": 0.0,
@@ -18,9 +20,11 @@ def parse_receipt_data(text):
         "Alcols": 0.0
     }
 
-    match_date = re.search(r"(\d{2})\s*[-/.]\s*\d{2}\s*[-/.]\s*\d{4}", text)
+    match_date = re.search(r"(\d{2})\s*[-/.]\s*(\d{2})\s*[-/.]\s*(\d{4})", text)
     if match_date:
         data["Date"] = int(match_date.group(1))
+        data["Mois"] = int(match_date.group(2))
+        data["Annee"] = int(match_date.group(3))
 
     patterns = {
         "Espece": r"Total ventes esp[èe]ces\s*(\d+[.,]\d{2})",
