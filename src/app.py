@@ -130,7 +130,7 @@ def write_journalier_to_sheet(sheet, row_idx, data, nb_jours):
         data["T.Resto"],
         data["CB"],
         formula,
-        data["Alcols"]
+        data["Alcools"]
     ]]
     sheet.update(range_name=f'B{row_idx}:F{row_idx}', values=row_data, value_input_option='USER_ENTERED')
     
@@ -180,6 +180,8 @@ if "pending_data" not in st.session_state:
     st.session_state.pending_data = None
 if "sheet_info" not in st.session_state:
     st.session_state.sheet_info = None
+if "mois_str" not in st.session_state:
+    st.session_state.mois_str = None
 
 sheet_url = st.secrets["sheet_url"]
 uploaded_file = st.file_uploader("Prendre une photo du ticket", type=["jpg", "jpeg", "png"])
@@ -211,20 +213,17 @@ if uploaded_file is not None:
                 st.dataframe(df_final)
 
     if st.session_state.pending_data is not None:
-        zone_bouton = st.empty()
-        with zone_bouton.container():
-            date_jour = st.session_state.pending_data["Date"]
-            mois_str = st.session_state.get("mois_str", "")
-            st.warning(f"Des valeurs existent déjà pour le jour {date_jour} du mois de {mois_str}. Voulez-vous les remplacer ?")
+        date_jour = st.session_state.pending_data["Date"]
+        mois_str = st.session_state.get("mois_str", "")
+        st.warning(f"Des valeurs existent déjà pour le jour {date_jour} du mois de {mois_str}. Voulez-vous les remplacer ?")
+        
+        if st.button("Confirmer le remplacement"):
+            sheet, row_idx, nb_jours = st.session_state.sheet_info
+            df_final = write_journalier_to_sheet(sheet, row_idx, st.session_state.pending_data, nb_jours)
             
-            if st.button("Confirmer le remplacement"):
-                zone_bouton.empty()
-                
-                sheet, row_idx, nb_jours = st.session_state.sheet_info
-                df_final = write_journalier_to_sheet(sheet, row_idx, st.session_state.pending_data, nb_jours)
-                st.success("Les valeurs ont été remplacées avec succès !")
-                st.dataframe(df_final)
-                
-                st.session_state.pending_data = None
-                st.session_state.sheet_info = None
-                st.session_state.mois_str = None
+            st.success("Les valeurs ont été remplacées avec succès !")
+            st.dataframe(df_final)
+            
+            st.session_state.pending_data = None
+            st.session_state.sheet_info = None
+            st.session_state.mois_str = None

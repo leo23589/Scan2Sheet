@@ -17,7 +17,7 @@ def parse_receipt_data(text):
         "T.Resto": 0.0,
         "CB": 0.0,
         "Total": 0.0,
-        "Alcols": 0.0
+        "Alcools": 0.0
     }
 
     match_date = re.search(r"(\d{2})\s*[-/.]\s*(\d{2})\s*[-/.]\s*(\d{4})", text)
@@ -30,7 +30,7 @@ def parse_receipt_data(text):
         "Espece": r"Total ventes esp[èe]ces\s*(\d+[.,]\d{2})",
         "CB": r"\bCB\s*(\d+[.,]\d{2})",
         "Total": r"Grand Total\s*(\d+[.,]\d{2})",
-        "Alcols": r"20,00%.*?(\d+[.,]\d{2})",
+        "Alcools": r"20,00%.*?(\d+[.,]\d{2})",
         "T.Resto": r"\bTR\s*(\d+[.,]\d{2})"
     }
 
