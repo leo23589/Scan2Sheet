@@ -66,7 +66,7 @@ def init_sheet_if_needed(spreadsheet, nom_onglet, nom_mois, nb_jours):
         sheet.batch_update(updates, value_input_option='USER_ENTERED')
         return sheet, fin_jours, ligne_total
 
-def update_google_sheets_journalier(data, sheet_url):
+def check_if_day_filled(data, sheet_url):
     creds = get_credentials()
     gc = gspread.authorize(creds)
     spreadsheet = gc.open_by_url(sheet_url)
@@ -77,13 +77,25 @@ def update_google_sheets_journalier(data, sheet_url):
     _, nb_jours = calendar.monthrange(annee, now.month)
     nom_onglet = f"{nom_mois} {annee}"
     
-    sheet, fin_jours, ligne_total = init_sheet_if_needed(spreadsheet, nom_onglet, nom_mois, nb_jours)
+    sheet, _, _ = init_sheet_if_needed(spreadsheet, nom_onglet, nom_mois, nb_jours)
     
     jour = int(data["Date"])
     if jour == 0:
         jour = now.day
         
     row_idx = jour + 3
+    valeurs = sheet.get(f'B{row_idx}:D{row_idx}')
+    
+    is_filled = False
+    if valeurs and len(valeurs) > 0:
+        for val in valeurs[0]:
+            if str(val).strip() not in ["", "0", "0.0"]:
+                is_filled = True
+                break
+                
+    return is_filled, sheet, row_idx, nom_mois
+
+def write_journalier_to_sheet(sheet, row_idx, data, nb_jours):
     formula = f"=B{row_idx}+C{row_idx}+D{row_idx}"
     row_data = [[
         data["Espece"],
@@ -92,9 +104,9 @@ def update_google_sheets_journalier(data, sheet_url):
         formula,
         data["Alcols"]
     ]]
-    
     sheet.update(range_name=f'B{row_idx}:F{row_idx}', values=row_data, value_input_option='USER_ENTERED')
     
+    ligne_total = nb_jours + 5
     raw_data = sheet.get(f'A3:F{ligne_total}')
     return pd.DataFrame(raw_data[1:], columns=raw_data[0])
 
@@ -136,13 +148,19 @@ def check_monthly_total(data, sheet_url):
 
 st.title("Scanner de Bilan Journalier")
 
+if "pending_data" not in st.session_state:
+    st.session_state.pending_data = None
+if "sheet_info" not in st.session_state:
+    st.session_state.sheet_info = None
+
 sheet_url = st.secrets["sheet_url"]
 uploaded_file = st.file_uploader("Prendre une photo du ticket", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    st.image(uploaded_file, caption="Ticket en cours d'analyse", use_column_width=True)
+    st.image(uploaded_file, caption="Ticket en cours d'analyse")
 
     if st.button("Lancer l'analyse et enregistrer"):
+        st.session_state.pending_data = None 
         texte_extrait = extract_text_from_image(uploaded_file)
         donnees = parse_receipt_data(texte_extrait)
         
@@ -153,6 +171,26 @@ if uploaded_file is not None:
             calcule, attendu = check_monthly_total(donnees, sheet_url)
             st.success(f"Vérification mensuelle effectuée ! Calculé: {calcule}€ / Attendu: {attendu}€")
         else:
-            df_final = update_google_sheets_journalier(donnees, sheet_url)
-            st.success("Le Google Sheet a été mis à jour !")
+            is_filled, sheet, row_idx, nom_mois = check_if_day_filled(donnees, sheet_url)
+            
+            if is_filled:
+                st.session_state.pending_data = donnees
+                st.session_state.sheet_info = (sheet, row_idx)
+                st.warning(f"Des valeurs existent déjà pour le jour {donnees['Date']} du mois de {nom_mois}. Voulez-vous les remplacer ?")
+            else:
+                now = datetime.now()
+                _, nb_jours = calendar.monthrange(now.year, now.month)
+                df_final = write_journalier_to_sheet(sheet, row_idx, donnees, nb_jours)
+                st.success("Le Google Sheet a été mis à jour !")
+                st.dataframe(df_final)
+
+    if st.session_state.pending_data is not None:
+        if st.button("Confirmer le remplacement"):
+            now = datetime.now()
+            _, nb_jours = calendar.monthrange(now.year, now.month)
+            sheet, row_idx = st.session_state.sheet_info
+            df_final = write_journalier_to_sheet(sheet, row_idx, st.session_state.pending_data, nb_jours)
+            st.success("Les valeurs ont été remplacées avec succès !")
             st.dataframe(df_final)
+            st.session_state.pending_data = None
+            st.session_state.sheet_info = None
