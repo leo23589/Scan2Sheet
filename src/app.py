@@ -2,13 +2,16 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import calendar
-import locale
 from google.cloud import vision
 import gspread
 from google.oauth2.service_account import Credentials
 from logic import parse_receipt_data
 
-locale.setlocale(locale.LC_TIME, 'fr_FR.UTF-8')
+MOIS_FR = {
+    1: "Janvier", 2: "Février", 3: "Mars", 4: "Avril",
+    5: "Mai", 6: "Juin", 7: "Juillet", 8: "Août",
+    9: "Septembre", 10: "Octobre", 11: "Novembre", 12: "Décembre"
+}
 
 def get_credentials():
     creds_dict = st.secrets["gcp_service_account"]
@@ -69,7 +72,7 @@ def update_google_sheets_journalier(data, sheet_url):
     spreadsheet = gc.open_by_url(sheet_url)
     
     now = datetime.now()
-    nom_mois = now.strftime("%B").capitalize()
+    nom_mois = MOIS_FR[now.month]
     annee = now.year
     _, nb_jours = calendar.monthrange(annee, now.month)
     nom_onglet = f"{nom_mois} {annee}"
@@ -101,7 +104,7 @@ def check_monthly_total(data, sheet_url):
     spreadsheet = gc.open_by_url(sheet_url)
     
     now = datetime.now()
-    nom_mois = now.strftime("%B").capitalize()
+    nom_mois = MOIS_FR[now.month]
     annee = now.year
     _, nb_jours = calendar.monthrange(annee, now.month)
     nom_onglet = f"{nom_mois} {annee}"
