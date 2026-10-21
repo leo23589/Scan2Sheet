@@ -107,7 +107,7 @@ def check_if_day_filled(data, sheet_url):
     
     sheet, _, _ = init_sheet_if_needed(spreadsheet, nom_onglet, nom_mois, nb_jours)
     
-    jour = int(data["Date"])
+    jour = int(data.get("Date", 0))
     if jour == 0:
         jour = now.day
         
@@ -126,11 +126,11 @@ def check_if_day_filled(data, sheet_url):
 def write_journalier_to_sheet(sheet, row_idx, data, nb_jours):
     formula = f"=B{row_idx}+C{row_idx}+D{row_idx}"
     row_data = [[
-        data["Espece"],
-        data["T.Resto"],
-        data["CB"],
+        data.get("Espece", 0.0),
+        data.get("T.Resto", 0.0),
+        data.get("CB", 0.0),
         formula,
-        data["Alcools"]
+        data.get("Alcools", 0.0)
     ]]
     sheet.update(range_name=f'B{row_idx}:F{row_idx}', values=row_data, value_input_option='USER_ENTERED')
     
@@ -159,12 +159,14 @@ def check_monthly_total(data, sheet_url):
     except (ValueError, AttributeError):
         valeur_calculee = 0.0
 
+    attendu = data.get("total_attendu", 0.0)
+    
     cell_format = {
         "backgroundColor": {
             "red": 0.0,
             "green": 1.0,
             "blue": 0.0
-        } if abs(valeur_calculee - data["total_attendu"]) < 0.5 else {
+        } if abs(valeur_calculee - attendu) < 0.5 else {
             "red": 1.0,
             "green": 0.0,
             "blue": 0.0
@@ -172,7 +174,7 @@ def check_monthly_total(data, sheet_url):
     }
     
     sheet.format(f"E{ligne_total}", cell_format)
-    return valeur_calculee, data["total_attendu"]
+    return valeur_calculee, attendu
 
 st.title("Scanner de Bilan Journalier")
 
@@ -197,7 +199,7 @@ if uploaded_file is not None:
         st.write("Catégories détectées :")
         st.json(donnees)
         
-        if donnees["type"] == "mensuel":
+        if donnees.get("type") == "mensuel":
             calcule, attendu = check_monthly_total(donnees, sheet_url)
             st.success(f"Vérification mensuelle effectuée ! Calculé: {calcule}€ / Attendu: {attendu}€")
         else:
@@ -212,18 +214,18 @@ if uploaded_file is not None:
                 st.success("Le Google Sheet a été mis à jour !")
                 st.dataframe(df_final)
 
-    if st.session_state.pending_data is not None:
-        date_jour = st.session_state.pending_data["Date"]
-        mois_str = st.session_state.get("mois_str", "")
-        st.warning(f"Des valeurs existent déjà pour le jour {date_jour} du mois de {mois_str}. Voulez-vous les remplacer ?")
+if st.session_state.pending_data is not None:
+    date_jour = st.session_state.pending_data.get("Date", "")
+    mois_str = st.session_state.get("mois_str", "")
+    st.warning(f"Des valeurs existent déjà pour le jour {date_jour} du mois de {mois_str}. Voulez-vous les remplacer ?")
+    
+    if st.button("Confirmer le remplacement"):
+        sheet, row_idx, nb_jours = st.session_state.sheet_info
+        df_final = write_journalier_to_sheet(sheet, row_idx, st.session_state.pending_data, nb_jours)
         
-        if st.button("Confirmer le remplacement"):
-            sheet, row_idx, nb_jours = st.session_state.sheet_info
-            df_final = write_journalier_to_sheet(sheet, row_idx, st.session_state.pending_data, nb_jours)
-            
-            st.success("Les valeurs ont été remplacées avec succès !")
-            st.dataframe(df_final)
-            
-            st.session_state.pending_data = None
-            st.session_state.sheet_info = None
-            st.session_state.mois_str = None
+        st.success("Les valeurs ont été remplacées avec succès !")
+        st.dataframe(df_final)
+        
+        st.session_state.pending_data = None
+        st.session_state.sheet_info = None
+        st.session_state.mois_str = None
