@@ -64,6 +64,18 @@ def init_sheet_if_needed(spreadsheet, nom_onglet, nom_mois, nb_jours):
         updates.append({'range': f'A{ligne_total}:F{ligne_total}', 'values': total_row})
         
         sheet.batch_update(updates, value_input_option='USER_ENTERED')
+
+        sheet.format(f"A3:F{ligne_total}", {
+            "borders": {
+                "top": {"style": "SOLID"},
+                "bottom": {"style": "SOLID"},
+                "left": {"style": "SOLID"},
+                "right": {"style": "SOLID"},
+                "innerHorizontal": {"style": "SOLID"},
+                "innerVertical": {"style": "SOLID"}
+            }
+        })
+        
         return sheet, fin_jours, ligne_total
 
 def check_if_day_filled(data, sheet_url):
