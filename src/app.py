@@ -65,16 +65,15 @@ def init_sheet_if_needed(spreadsheet, nom_onglet, nom_mois, nb_jours):
         
         sheet.batch_update(updates, value_input_option='USER_ENTERED')
 
-        # Formater les bordures (contours pleins et intérieurs pleins) de A3 jusqu'en bas à droite
         sheet_id = sheet.id
         border_format = {
             "updateBorders": {
                 "range": {
                     "sheetId": sheet_id,
-                    "startRowIndex": 2,          # Ligne 3 (zéro index)
-                    "endRowIndex": ligne_total,  # Jusqu'à la ligne des totaux
-                    "startColumnIndex": 0,       # Colonne A
-                    "endColumnIndex": 6          # Colonne F
+                    "startRowIndex": 2,
+                    "endRowIndex": ligne_total,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": 6
                 },
                 "top": {"style": "SOLID", "width": 1},
                 "bottom": {"style": "SOLID", "width": 1},
@@ -85,7 +84,6 @@ def init_sheet_if_needed(spreadsheet, nom_onglet, nom_mois, nb_jours):
             }
         }
         
-        # Envoi de la requête de formatage spéciale via l'API client brute
         spreadsheet.client.batch_update(spreadsheet.id, {'requests': [border_format]})
 
         return sheet, fin_jours, ligne_total
@@ -206,17 +204,27 @@ if uploaded_file is not None:
             if is_filled:
                 st.session_state.pending_data = donnees
                 st.session_state.sheet_info = (sheet, row_idx, nb_jours)
-                st.warning(f"Des valeurs existent déjà pour le jour {donnees['Date']} du mois de {nom_mois} {annee_num}. Voulez-vous les remplacer ?")
+                st.session_state.mois_str = f"{nom_mois} {annee_num}"
             else:
                 df_final = write_journalier_to_sheet(sheet, row_idx, donnees, nb_jours)
                 st.success("Le Google Sheet a été mis à jour !")
                 st.dataframe(df_final)
 
     if st.session_state.pending_data is not None:
-        if st.button("Confirmer le remplacement"):
-            sheet, row_idx, nb_jours = st.session_state.sheet_info
-            df_final = write_journalier_to_sheet(sheet, row_idx, st.session_state.pending_data, nb_jours)
-            st.success("Les valeurs ont été remplacées avec succès !")
-            st.dataframe(df_final)
-            st.session_state.pending_data = None
-            st.session_state.sheet_info = None
+        zone_bouton = st.empty()
+        with zone_bouton.container():
+            date_jour = st.session_state.pending_data["Date"]
+            mois_str = st.session_state.get("mois_str", "")
+            st.warning(f"Des valeurs existent déjà pour le jour {date_jour} du mois de {mois_str}. Voulez-vous les remplacer ?")
+            
+            if st.button("Confirmer le remplacement"):
+                zone_bouton.empty()
+                
+                sheet, row_idx, nb_jours = st.session_state.sheet_info
+                df_final = write_journalier_to_sheet(sheet, row_idx, st.session_state.pending_data, nb_jours)
+                st.success("Les valeurs ont été remplacées avec succès !")
+                st.dataframe(df_final)
+                
+                st.session_state.pending_data = None
+                st.session_state.sheet_info = None
+                st.session_state.mois_str = None
