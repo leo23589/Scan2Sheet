@@ -72,10 +72,16 @@ def check_if_day_filled(data, sheet_url):
     spreadsheet = gc.open_by_url(sheet_url)
     
     now = datetime.now()
-    nom_mois = MOIS_FR[now.month]
-    annee = now.year
-    _, nb_jours = calendar.monthrange(annee, now.month)
-    nom_onglet = f"{nom_mois} {annee}"
+    mois_num = data.get("Mois", 0)
+    annee_num = data.get("Annee", 0)
+    
+    if mois_num == 0 or annee_num == 0:
+        mois_num = now.month
+        annee_num = now.year
+        
+    nom_mois = MOIS_FR[mois_num]
+    _, nb_jours = calendar.monthrange(annee_num, mois_num)
+    nom_onglet = f"{nom_mois} {annee_num}"
     
     sheet, _, _ = init_sheet_if_needed(spreadsheet, nom_onglet, nom_mois, nb_jours)
     
@@ -93,7 +99,7 @@ def check_if_day_filled(data, sheet_url):
                 is_filled = True
                 break
                 
-    return is_filled, sheet, row_idx, nom_mois
+    return is_filled, sheet, row_idx, nom_mois, annee_num, mois_num, nb_jours
 
 def write_journalier_to_sheet(sheet, row_idx, data, nb_jours):
     formula = f"=B{row_idx}+C{row_idx}+D{row_idx}"
@@ -157,7 +163,7 @@ sheet_url = st.secrets["sheet_url"]
 uploaded_file = st.file_uploader("Prendre une photo du ticket", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    st.image(uploaded_file, caption="Ticket en cours d'analyse")
+    st.image(uploaded_file)
 
     if st.button("Lancer l'analyse et enregistrer"):
         st.session_state.pending_data = None 
@@ -171,24 +177,20 @@ if uploaded_file is not None:
             calcule, attendu = check_monthly_total(donnees, sheet_url)
             st.success(f"Vérification mensuelle effectuée ! Calculé: {calcule}€ / Attendu: {attendu}€")
         else:
-            is_filled, sheet, row_idx, nom_mois = check_if_day_filled(donnees, sheet_url)
+            is_filled, sheet, row_idx, nom_mois, annee_num, mois_num, nb_jours = check_if_day_filled(donnees, sheet_url)
             
             if is_filled:
                 st.session_state.pending_data = donnees
-                st.session_state.sheet_info = (sheet, row_idx)
-                st.warning(f"Des valeurs existent déjà pour le jour {donnees['Date']} du mois de {nom_mois}. Voulez-vous les remplacer ?")
+                st.session_state.sheet_info = (sheet, row_idx, nb_jours)
+                st.warning(f"Des valeurs existent déjà pour le jour {donnees['Date']} du mois de {nom_mois} {annee_num}. Voulez-vous les remplacer ?")
             else:
-                now = datetime.now()
-                _, nb_jours = calendar.monthrange(now.year, now.month)
                 df_final = write_journalier_to_sheet(sheet, row_idx, donnees, nb_jours)
                 st.success("Le Google Sheet a été mis à jour !")
                 st.dataframe(df_final)
 
     if st.session_state.pending_data is not None:
         if st.button("Confirmer le remplacement"):
-            now = datetime.now()
-            _, nb_jours = calendar.monthrange(now.year, now.month)
-            sheet, row_idx = st.session_state.sheet_info
+            sheet, row_idx, nb_jours = st.session_state.sheet_info
             df_final = write_journalier_to_sheet(sheet, row_idx, st.session_state.pending_data, nb_jours)
             st.success("Les valeurs ont été remplacées avec succès !")
             st.dataframe(df_final)
