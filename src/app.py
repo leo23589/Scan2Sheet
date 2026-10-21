@@ -65,17 +65,29 @@ def init_sheet_if_needed(spreadsheet, nom_onglet, nom_mois, nb_jours):
         
         sheet.batch_update(updates, value_input_option='USER_ENTERED')
 
-        sheet.format(f"A3:F{ligne_total}", {
-            "borders": {
-                "top": {"style": "SOLID"},
-                "bottom": {"style": "SOLID"},
-                "left": {"style": "SOLID"},
-                "right": {"style": "SOLID"},
-                "innerHorizontal": {"style": "SOLID"},
-                "innerVertical": {"style": "SOLID"}
+        # Formater les bordures (contours pleins et intérieurs pleins) de A3 jusqu'en bas à droite
+        sheet_id = sheet.id
+        border_format = {
+            "updateBorders": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": 2,          # Ligne 3 (zéro index)
+                    "endRowIndex": ligne_total,  # Jusqu'à la ligne des totaux
+                    "startColumnIndex": 0,       # Colonne A
+                    "endColumnIndex": 6          # Colonne F
+                },
+                "top": {"style": "SOLID", "width": 1},
+                "bottom": {"style": "SOLID", "width": 1},
+                "left": {"style": "SOLID", "width": 1},
+                "right": {"style": "SOLID", "width": 1},
+                "innerHorizontal": {"style": "SOLID", "width": 1},
+                "innerVertical": {"style": "SOLID", "width": 1}
             }
-        })
+        }
         
+        # Envoi de la requête de formatage spéciale via l'API client brute
+        spreadsheet.client.batch_update(spreadsheet.id, {'requests': [border_format]})
+
         return sheet, fin_jours, ligne_total
 
 def check_if_day_filled(data, sheet_url):
