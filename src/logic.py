@@ -18,7 +18,7 @@ def parse_receipt_data(text):
         "Alcols": 0.0
     }
 
-    match_date = re.search(r"Date du rapport\s*[:]?\s*(\d{2})", text, re.IGNORECASE)
+    match_date = re.search(r"\b(\d{2})[-/]\d{2}[-/]\d{4}\b", text)
     if match_date:
         data["Date"] = int(match_date.group(1))
 
