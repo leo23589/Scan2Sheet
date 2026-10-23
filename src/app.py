@@ -178,54 +178,64 @@ def check_monthly_total(data, sheet_url):
 
 st.title("Scanner de Bilan Journalier")
 
-if "pending_data" not in st.session_state:
-    st.session_state.pending_data = None
-if "sheet_info" not in st.session_state:
-    st.session_state.sheet_info = None
-if "mois_str" not in st.session_state:
-    st.session_state.mois_str = None
+if "pending_replacements" not in st.session_state:
+    st.session_state.pending_replacements = []
 
 sheet_url = st.secrets["sheet_url"]
-uploaded_file = st.file_uploader("Prendre une photo du ticket", type=["jpg", "jpeg", "png"])
 
-if uploaded_file is not None:
-    st.image(uploaded_file)
+# Ajout du paramètre accept_multiple_files=True
+uploaded_files = st.file_uploader("Prendre une ou plusieurs photos", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
+if uploaded_files:
     if st.button("Lancer l'analyse et enregistrer"):
-        st.session_state.pending_data = None 
-        texte_extrait = extract_text_from_image(uploaded_file)
-        donnees = parse_receipt_data(texte_extrait)
+        st.session_state.pending_replacements = [] 
         
-        st.write("Catégories détectées :")
-        st.json(donnees)
-        
-        if donnees.get("type") == "mensuel":
-            calcule, attendu = check_monthly_total(donnees, sheet_url)
-            st.success(f"Vérification mensuelle effectuée ! Calculé: {calcule}€ / Attendu: {attendu}€")
-        else:
-            is_filled, sheet, row_idx, nom_mois, annee_num, mois_num, nb_jours = check_if_day_filled(donnees, sheet_url)
+        for uploaded_file in uploaded_files:
+            st.markdown("---")
+            st.image(uploaded_file, width=350, caption=f"Analyse de : {uploaded_file.name}")
             
-            if is_filled:
-                st.session_state.pending_data = donnees
-                st.session_state.sheet_info = (sheet, row_idx, nb_jours)
-                st.session_state.mois_str = f"{nom_mois} {annee_num}"
+            texte_extrait = extract_text_from_image(uploaded_file)
+            donnees = parse_receipt_data(texte_extrait)
+            
+            st.write(f"Catégories détectées ({uploaded_file.name}) :")
+            st.json(donnees)
+            
+            if donnees.get("type") == "mensuel":
+                calcule, attendu = check_monthly_total(donnees, sheet_url)
+                st.success(f"Vérification mensuelle effectuée ! Calculé: {calcule}€ / Attendu: {attendu}€")
             else:
-                df_final = write_journalier_to_sheet(sheet, row_idx, donnees, nb_jours)
-                st.success("Le Google Sheet a été mis à jour !")
-                st.dataframe(df_final)
+                is_filled, sheet, row_idx, nom_mois, annee_num, mois_num, nb_jours = check_if_day_filled(donnees, sheet_url)
+                
+                if is_filled:
+                    st.session_state.pending_replacements.append({
+                        "donnees": donnees,
+                        "sheet": sheet,
+                        "row_idx": row_idx,
+                        "nb_jours": nb_jours,
+                        "date_jour": donnees.get("Date", 0),
+                        "mois_str": f"{nom_mois} {annee_num}",
+                        "file_name": uploaded_file.name
+                    })
+                    st.warning(f"⚠️ Valeurs existantes pour le {donnees.get('Date', 0)} {nom_mois} {annee_num}. Mis en file d'attente.")
+                else:
+                    df_final = write_journalier_to_sheet(sheet, row_idx, donnees, nb_jours)
+                    st.success(f"✅ Le Google Sheet a été mis à jour pour le {donnees.get('Date', 0)} {nom_mois} !")
 
-if st.session_state.pending_data is not None:
-    date_jour = st.session_state.pending_data.get("Date", "")
-    mois_str = st.session_state.get("mois_str", "")
-    st.warning(f"Des valeurs existent déjà pour le jour {date_jour} du mois de {mois_str}. Voulez-vous les remplacer ?")
+# Gestion globale des remplacements en attente
+if st.session_state.pending_replacements:
+    st.markdown("---")
+    st.warning("⚠️ **Confirmation de remplacement requise**")
     
-    if st.button("Confirmer le remplacement"):
-        sheet, row_idx, nb_jours = st.session_state.sheet_info
-        df_final = write_journalier_to_sheet(sheet, row_idx, st.session_state.pending_data, nb_jours)
+    for item in st.session_state.pending_replacements:
+        st.write(f"- Ticket **{item['file_name']}** : Remplacer les données du {item['date_jour']} {item['mois_str']}")
         
-        st.success("Les valeurs ont été remplacées avec succès !")
-        st.dataframe(df_final)
+    if st.button("Confirmer TOUS les remplacements"):
+        df_final = None
+        for item in st.session_state.pending_replacements:
+            df_final = write_journalier_to_sheet(item["sheet"], item["row_idx"], item["donnees"], item["nb_jours"])
+            st.success(f"Les valeurs du {item['date_jour']} {item['mois_str']} ont été remplacées avec succès !")
         
-        st.session_state.pending_data = None
-        st.session_state.sheet_info = None
-        st.session_state.mois_str = None
+        if df_final is not None:
+            st.dataframe(df_final)
+            
+        st.session_state.pending_replacements = []
